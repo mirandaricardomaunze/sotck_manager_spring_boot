@@ -47,17 +47,17 @@ public class OrderController {
         return ResponseEntity.ok(orderService.updateOrder(id, dto));
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteOrder(@PathVariable Long id) {
-        orderService.deleteOrder(id);
+    /**
+     * Endpoint para ANULAR pedido (cancelar e liberar estoque reservado).
+     */
+    @PutMapping("/{id}/cancel")
+    public ResponseEntity<Void> cancelOrder(@PathVariable Long id) {
+        orderService.cancelOrder(id);
         return ResponseEntity.noContent().build();
     }
 
     // ---------------------- EXPORTAÇÕES ----------------------
 
-    /**
-     * Exporta a encomenda para PDF.
-     */
     @GetMapping(
             value = "/{id}/export/pdf",
             produces = {"application/pdf", "application/json"}
@@ -69,9 +69,6 @@ public class OrderController {
                 .body(data);
     }
 
-    /**
-     * Exporta a encomenda para Excel (.xlsx).
-     */
     @GetMapping(
             value = "/{id}/export/excel",
             produces = {"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/json"}
@@ -83,9 +80,6 @@ public class OrderController {
                 .body(data);
     }
 
-    /**
-     * Mostra um preview em PDF da encomenda.
-     */
     @GetMapping(
             value = "/{id}/preview",
             produces = {"application/pdf", "application/json"}
@@ -96,5 +90,4 @@ public class OrderController {
                 .header("Content-Disposition", "inline; filename=preview_fatura_" + id + ".pdf")
                 .body(data);
     }
-
 }

@@ -3,5 +3,8 @@ public enum OrderStatus {
     PENDING,
     INVOICED,
     PAID,
-    CANCELED
+    CANCELED,
+    DRAFT,      // Criado, mas sem reservar estoque
+    RESERVED,
 }
+

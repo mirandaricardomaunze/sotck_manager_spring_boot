@@ -1,5 +1,6 @@
 package com.stock.stockmanager.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -28,7 +29,7 @@ public class TransferResponseDTO {
     private Long companyId;
     private String companyName;
 
-    // Usuário
+    // Utilizador
     private Long userId;
     private String user;
 
@@ -36,10 +37,13 @@ public class TransferResponseDTO {
     private Integer quantity;
 
     // Estoque após a transferência em cada armazém
-    private StockDTO stockSource;
-    private StockDTO stockDestination;
+    private StockResponseDTO stockSource;
+    private StockResponseDTO stockDestination;
 
     // Data da transferência
+    @JsonFormat(pattern = "dd/MM/yyyy HH:mm:ss")
+    private LocalDateTime createdAt;
+
     private LocalDateTime transferDate;
 
     // Referência opcional da transferência

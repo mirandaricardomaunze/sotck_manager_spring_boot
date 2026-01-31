@@ -1,6 +1,6 @@
 package com.stock.stockmanager.mapper;
 
-import com.stock.stockmanager.dto.StockDTO;
+import com.stock.stockmanager.dto.StockResponseDTO;
 import com.stock.stockmanager.dto.StockSummaryDTO;
 import com.stock.stockmanager.model.Stock;
 import org.springframework.stereotype.Component;
@@ -8,11 +8,11 @@ import org.springframework.stereotype.Component;
 @Component
 public class StockMapper {
 
-    // Mapper para StockDTO (com IDs e nomes)
-    public StockDTO toDTO(Stock stock) {
+    public StockResponseDTO toDTO(Stock stock) {
         if (stock == null) return null;
-        StockDTO dto = new StockDTO();
-        dto.setId(stock.getId());
+        StockResponseDTO dto = new StockResponseDTO();
+
+        dto.setId(stock.getId());  // ≤-- ‘ID’ agora é populado
 
         if (stock.getProduct() != null) {
             dto.setProductId(stock.getProduct().getId());
@@ -25,10 +25,12 @@ public class StockMapper {
         }
 
         dto.setQuantity(stock.getQuantity());
+        dto.setReservedQuantity(stock.getReservedQuantity());
+        dto.setAvailableQuantity(stock.getAvailableQuantity()); // quantity - reservedQuantity
+
         return dto;
     }
 
-    // Mapper para StockSummaryDTO
     public StockSummaryDTO toSummaryDTO(String name, Long totalQuantity) {
         return new StockSummaryDTO(name, totalQuantity);
     }

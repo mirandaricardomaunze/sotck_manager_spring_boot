@@ -26,4 +26,6 @@ public class SaleResponseDTO {
     private LocalDateTime saleDate;
     private List<SaleItemResponseDTO> items;
     private Long companyId;
+    private String userName;
+    private Long userId;
 }

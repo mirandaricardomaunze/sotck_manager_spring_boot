@@ -18,50 +18,59 @@ public class TransferController {
     private final TransferService transferService;
 
     // ===============================================
-// CREATE
-// ===============================================
+    // CREATE
+    // ===============================================
     @PostMapping
-    public ResponseEntity<TransferResponseDTO> create(@RequestBody TransferRequestDTO dto) {
-        TransferResponseDTO response = transferService.createTransfer(dto);
+    public ResponseEntity<TransferResponseDTO> create(
+            @RequestBody TransferRequestDTO dto,
+            @RequestHeader("userId") Long userId // Pega o userId do header
+    ) {
+        // Passa o userId diretamente para o service
+        TransferResponseDTO response = transferService.createTransfer(dto, userId);
+
         return ResponseEntity
                 .created(URI.create("/api/transfers/" + response.getId()))
                 .body(response);
     }
 
     // ===============================================
-// GET BY ID
-// ===============================================
+    // GET BY ID
+    // ===============================================
     @GetMapping("/{id}")
     public ResponseEntity<TransferResponseDTO> getById(@PathVariable Long id) {
-        TransferResponseDTO dto = transferService.getById(id);
-        return ResponseEntity.ok(dto);
+        return ResponseEntity.ok(transferService.getById(id));
     }
 
     // ===============================================
-// LIST ALL
-// ===============================================
+    // LIST ALL
+    // ===============================================
     @GetMapping
     public ResponseEntity<List<TransferResponseDTO>> getAll() {
         return ResponseEntity.ok(transferService.getAll());
     }
 
     // ===============================================
-// UPDATE
-// ===============================================
+    // UPDATE
+    // ===============================================
     @PutMapping("/{id}")
-    public ResponseEntity<TransferResponseDTO> update(@PathVariable Long id,
-                                                      @RequestBody TransferRequestDTO dto) {
-        TransferResponseDTO updated = transferService.updateTransfer(id, dto);
-        return ResponseEntity.ok(updated);
+    public ResponseEntity<TransferResponseDTO> update(
+            @PathVariable Long id,
+            @RequestBody TransferRequestDTO dto,
+            @RequestHeader("userId") Long userId // Pode ser usado se quiser validar permissões
+    ) {
+        TransferResponseDTO response = transferService.updateTransfer(id, dto);
+        return ResponseEntity.ok(response);
     }
 
     // ===============================================
-// DELETE
-// ===============================================
+    // DELETE
+    // ===============================================
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
+    public ResponseEntity<Void> delete(
+            @PathVariable Long id,
+            @RequestHeader("userId") Long userId // Pode ser usado se quiser validar permissões
+    ) {
         transferService.deleteTransfer(id);
         return ResponseEntity.noContent().build();
     }
-
 }

@@ -3,6 +3,8 @@ package com.stock.stockmanager.dto;
 import lombok.*;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Getter
 @Setter
@@ -10,21 +12,42 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 @Builder
 public class ProductResponseDTO {
+    // ===== Básico =====
     private Long id;
     private String name;
     private String description;
     private String sku;
     private String barcode;
-    private Boolean isActive;
     private String referenceNumber;
     private Integer boxes;
     private BigDecimal sellingPrice;
     private BigDecimal costPrice;
     private Integer quantityInStock;
     private Integer minimumStockLevel;
+    private Integer maximumStockLevel;
+    private Integer reorderPoint;
     private String unitOfMeasure;
+    private Boolean isActive;
 
-    // Relacionamentos (apenas ids/nome)
+    // ===== Logísticos =====
+    private String locationCode;
+    private Double weight;
+    private Double volume;
+    private LocalDate expirationDate;
+    private String batchNumber;
+
+    // ===== Fiscais =====
+    private BigDecimal taxPercentage;
+    private Boolean isTaxIncluded;
+    private String accountingCode;
+
+    // ===== Catálogo / e-commerce =====
+    private String brand;
+    private String model;
+    private String tags;
+    private String imageUrl;
+
+    // ===== Relacionamentos =====
     private Long companyId;
     private String companyName;
     private Long warehouseId;
@@ -34,13 +57,17 @@ public class ProductResponseDTO {
     private Long supplierId;
     private String supplierName;
 
-    // Métodos avançados da entidade
-    private int fullBoxes;
-    private int remainingItems;
+    // ===== Auditoria =====
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+    private String createdBy;
+    private String updatedBy;
+
+    // ===== Campos calculados / avançados =====
+    private Integer fullBoxes;
+    private Integer remainingItems;
     private String stockDetail;
     private Boolean belowMinimum;
     private BigDecimal profitMargin;
     private BigDecimal profitMarginPercentage;
-
-
 }

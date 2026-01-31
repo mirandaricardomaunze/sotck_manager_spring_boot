@@ -3,7 +3,7 @@ package com.stock.stockmanager.enums;
 public enum SaleStatus {
     PENDING("Pendente"),
     COMPLETED("Concluída"),
-    CANCELLED("Cancelada");
+    CANCELED("Cancelada");
 
     private final String description;
 

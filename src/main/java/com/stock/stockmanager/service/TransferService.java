@@ -8,8 +8,6 @@ import com.stock.stockmanager.mapper.TransferMapper;
 import com.stock.stockmanager.model.*;
 import com.stock.stockmanager.repository.*;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,23 +25,15 @@ public class TransferService {
     private final TransferMapper transferMapper;
     private final UserRepository userRepository;
     private final CompanyRepository companyRepository;
+
     // ============================================================
-// CREATE TRANSFER
-// ============================================================
-    private User getCurrentUser() {
-        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-
-        if (principal instanceof UserDetails) {
-            String username = ((UserDetails) principal).getUsername();
-            return userRepository.findByUsername(username)
-                    .orElseThrow(() -> new RuntimeException("Usuário logado não encontrado"));
-        } else {
-            throw new RuntimeException("Usuário não autenticado");
-        }
-    }
-
+    // CREATE TRANSFER
+    // ============================================================
     @Transactional
-    public TransferResponseDTO createTransfer(TransferRequestDTO dto) {
+    public TransferResponseDTO createTransfer(TransferRequestDTO dto, Long userId) {
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado"));
 
         if (dto.getProductId() == null) {
             throw new BusinessException("Produto ID não pode ser nulo");
@@ -57,16 +47,14 @@ public class TransferService {
         if (dto.getCompanyId() == null) {
             throw new BusinessException("Empresa ID não pode ser nula");
         }
-
-
+        if (dto.getQuantity() == null || dto.getQuantity() <= 0) {
+            throw new BusinessException("A quantidade deve ser maior que zero");
+        }
         Product product = productRepository.findById(dto.getProductId())
                 .orElseThrow(() -> new ResourceNotFoundException("Produto não encontrado"));
 
         Warehouse warehouseOrigin = warehouseRepository.findById(dto.getSourceWarehouseId())
                 .orElseThrow(() -> new ResourceNotFoundException("Armazém de origem não encontrado"));
-
-        Company company = companyRepository.findById(dto.getCompanyId())
-                .orElseThrow(() -> new ResourceNotFoundException("Empresa não encontrada"));
 
         Warehouse warehouseDestination = warehouseRepository.findById(dto.getDestinationWarehouseId())
                 .orElseThrow(() -> new ResourceNotFoundException("Armazém de destino não encontrado"));
@@ -74,6 +62,9 @@ public class TransferService {
         if (warehouseOrigin.getId().equals(warehouseDestination.getId())) {
             throw new BusinessException("Armazém de origem e destino não podem ser iguais");
         }
+
+        Company company = companyRepository.findById(dto.getCompanyId())
+                .orElseThrow(() -> new ResourceNotFoundException("Empresa não encontrada"));
 
         Stock stockOrigin = stockRepository.findByProductAndWarehouse(product, warehouseOrigin)
                 .orElseThrow(() -> new BusinessException("Produto não possui estoque no armazém de origem"));
@@ -88,14 +79,12 @@ public class TransferService {
         if (stockOrigin.getQuantity() < dto.getQuantity()) {
             throw new BusinessException("Estoque insuficiente para transferência");
         }
-        if (dto.getQuantity() <= 0) {
-            throw new BusinessException("A quantidade deve ser maior que zero");
-        }
 
+        // Atualizar estoques
         stockOrigin.setQuantity(stockOrigin.getQuantity() - dto.getQuantity());
-        stockRepository.save(stockOrigin);
-
         stockDestination.setQuantity(stockDestination.getQuantity() + dto.getQuantity());
+
+        stockRepository.save(stockOrigin);
         stockRepository.save(stockDestination);
 
         Transfer transfer = Transfer.builder()
@@ -106,42 +95,43 @@ public class TransferService {
                 .quantity(dto.getQuantity())
                 .transferDate(LocalDateTime.now())
                 .reference(dto.getReference())
-                .user(getCurrentUser())
+                .user(user)
                 .build();
-        // Debug: ver os dados antes de salvar
-        System.out.println("Criando Transfer: " + transfer);
-        System.out.println("Estoque origem: " + stockOrigin.getQuantity() +
-                ", Estoque destino: " + stockDestination.getQuantity());
+
         transferRepository.save(transfer);
 
         return transferMapper.toResponseDTO(transfer, stockOrigin, stockDestination);
     }
 
     // ============================================================
-// UPDATE TRANSFER
-// ============================================================
+    // UPDATE TRANSFER
+    // ============================================================
     @Transactional
     public TransferResponseDTO updateTransfer(Long id, TransferRequestDTO dto) {
+
         Transfer transfer = transferRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Transferência não encontrada"));
 
-        // Buscar estoque atual
-        Stock stockOrigin = stockRepository.findByProductAndWarehouse(transfer.getProduct(), transfer.getSourceWarehouse())
-                .orElseThrow(() -> new BusinessException("Estoque de origem não encontrado"));
+        Stock stockOrigin = stockRepository.findByProductAndWarehouse(
+                transfer.getProduct(),
+                transfer.getSourceWarehouse()
+        ).orElseThrow(() -> new BusinessException("Estoque de origem não encontrado"));
 
-        Stock stockDestination = stockRepository.findByProductAndWarehouse(transfer.getProduct(), transfer.getDestinationWarehouse())
-                .orElseThrow(() -> new BusinessException("Estoque de destino não encontrado"));
+        Stock stockDestination = stockRepository.findByProductAndWarehouse(
+                transfer.getProduct(),
+                transfer.getDestinationWarehouse()
+        ).orElseThrow(() -> new BusinessException("Estoque de destino não encontrado"));
 
-        // Ajustar estoques: desfazendo quantidade antiga
+        if (dto.getQuantity() == null || dto.getQuantity() <= 0) {
+            throw new BusinessException("A quantidade deve ser maior que zero");
+        }
+
+        // Reverter quantidade antiga
         stockOrigin.setQuantity(stockOrigin.getQuantity() + transfer.getQuantity());
         stockDestination.setQuantity(stockDestination.getQuantity() - transfer.getQuantity());
 
-        // Validar novo estoque
         if (stockOrigin.getQuantity() < dto.getQuantity()) {
             throw new BusinessException("Estoque insuficiente para transferência atualizada");
-        }
-        if (dto.getQuantity() <= 0) {
-            throw new BusinessException("A quantidade deve ser maior que zero");
         }
 
         // Aplicar nova quantidade
@@ -151,29 +141,34 @@ public class TransferService {
         stockRepository.save(stockOrigin);
         stockRepository.save(stockDestination);
 
-        // Atualizar transferência
         transfer.setQuantity(dto.getQuantity());
         transfer.setReference(dto.getReference());
+
         transferRepository.save(transfer);
 
         return transferMapper.toResponseDTO(transfer, stockOrigin, stockDestination);
     }
 
     // ============================================================
-// DELETE TRANSFER
-// ============================================================
+    // DELETE TRANSFER
+    // ============================================================
     @Transactional
     public void deleteTransfer(Long id) {
+
         Transfer transfer = transferRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Transferência não encontrada"));
 
-        Stock stockOrigin = stockRepository.findByProductAndWarehouse(transfer.getProduct(), transfer.getSourceWarehouse())
-                .orElseThrow(() -> new BusinessException("Estoque de origem não encontrado"));
+        Stock stockOrigin = stockRepository.findByProductAndWarehouse(
+                transfer.getProduct(),
+                transfer.getSourceWarehouse()
+        ).orElseThrow(() -> new BusinessException("Estoque de origem não encontrado"));
 
-        Stock stockDestination = stockRepository.findByProductAndWarehouse(transfer.getProduct(), transfer.getDestinationWarehouse())
-                .orElseThrow(() -> new BusinessException("Estoque de destino não encontrado"));
+        Stock stockDestination = stockRepository.findByProductAndWarehouse(
+                transfer.getProduct(),
+                transfer.getDestinationWarehouse()
+        ).orElseThrow(() -> new BusinessException("Estoque de destino não encontrado"));
 
-        // Reverter transferência nos estoques
+        // Reverter estoque
         stockOrigin.setQuantity(stockOrigin.getQuantity() + transfer.getQuantity());
         stockDestination.setQuantity(stockDestination.getQuantity() - transfer.getQuantity());
 
@@ -184,32 +179,43 @@ public class TransferService {
     }
 
     // ============================================================
-// GET TRANSFER BY ID
-// ============================================================
+    // GET BY ID
+    // ============================================================
     public TransferResponseDTO getById(Long id) {
+
         Transfer transfer = transferRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Transferência não encontrada"));
 
-        Stock stockOrigin = stockRepository.findByProductAndWarehouse(transfer.getProduct(), transfer.getSourceWarehouse())
-                .orElse(null);
+        Stock stockOrigin = stockRepository.findByProductAndWarehouse(
+                transfer.getProduct(),
+                transfer.getSourceWarehouse()
+        ).orElse(null);
 
-        Stock stockDestination = stockRepository.findByProductAndWarehouse(transfer.getProduct(), transfer.getDestinationWarehouse())
-                .orElse(null);
+        Stock stockDestination = stockRepository.findByProductAndWarehouse(
+                transfer.getProduct(),
+                transfer.getDestinationWarehouse()
+        ).orElse(null);
 
         return transferMapper.toResponseDTO(transfer, stockOrigin, stockDestination);
     }
 
     // ============================================================
-// LIST ALL TRANSFERS
-// ============================================================
+    // LIST ALL
+    // ============================================================
     public List<TransferResponseDTO> getAll() {
-        List<Transfer> transfers = transferRepository.findAll();
-        return transfers.stream().map(t -> {
-            Stock stockOrigin = stockRepository.findByProductAndWarehouse(t.getProduct(), t.getSourceWarehouse())
-                    .orElse(null);
-            Stock stockDestination = stockRepository.findByProductAndWarehouse(t.getProduct(), t.getDestinationWarehouse())
-                    .orElse(null);
-            return transferMapper.toResponseDTO(t, stockOrigin, stockDestination);
+
+        return transferRepository.findAll().stream().map(t -> {
+            Stock origin = stockRepository.findByProductAndWarehouse(
+                    t.getProduct(),
+                    t.getSourceWarehouse()
+            ).orElse(null);
+
+            Stock destination = stockRepository.findByProductAndWarehouse(
+                    t.getProduct(),
+                    t.getDestinationWarehouse()
+            ).orElse(null);
+
+            return transferMapper.toResponseDTO(t, origin, destination);
         }).toList();
     }
 }

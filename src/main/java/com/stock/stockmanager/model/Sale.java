@@ -41,10 +41,16 @@ public class Sale {
     private SaleStatus status;
 
     private LocalDateTime saleDate;
+    @ManyToOne
+    @JoinColumn(name = "warehouse_id")
+    private Warehouse warehouse;
 
     @ManyToOne
     @JoinColumn(name = "company_id")
     private Company company;
+    @ManyToOne
+    @JoinColumn(name = "user_id")
+    private User userName;
 
     @OneToMany(mappedBy = "sale", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<SaleItem> items = new ArrayList<>();

@@ -1,20 +1,16 @@
 package com.stock.stockmanager.dto;
 
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
 
 import java.math.BigDecimal;
-
-@Getter
-@Setter
-@NoArgsConstructor
+@Data
 @AllArgsConstructor
-@Builder
-public class SaleItemResponseDTO {
-    private Long productId;
+public class SaleItemReportDTO {
     private String productName;
-    private String productCode;
     private Integer quantity;
     private BigDecimal unitPrice;
     private BigDecimal subtotal;
     private BigDecimal taxAmount;
+    private BigDecimal total;
 }

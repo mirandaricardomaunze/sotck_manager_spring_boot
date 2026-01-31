@@ -26,6 +26,7 @@ public class MovementController {
         return service.create(dto);
     }
 
+    /** Filtra movimentos por data */
     @GetMapping("/filter")
     public List<MovementResponseDTO> filterByDate(
             @RequestParam("start") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
@@ -40,7 +41,7 @@ public class MovementController {
         return service.getAll();
     }
 
-    /** Busca movimento por ‘ID’ */
+    /** Busca movimento por ID */
     @GetMapping("/{id}")
     public MovementResponseDTO getById(@PathVariable Long id) {
         return service.getById(id);
@@ -58,4 +59,22 @@ public class MovementController {
     public void delete(@PathVariable Long id) {
         service.delete(id);
     }
+
+    /** Lista movimentos por empresa */
+    @GetMapping("/company/{companyId}")
+    public List<MovementResponseDTO> getByCompany(@PathVariable Long companyId) {
+        return service.getByCompany(companyId);
+    }
+
+    /** Lista movimentos por empresa dentro de um intervalo de datas */
+    @GetMapping("/company/{companyId}/filter")
+    public List<MovementResponseDTO> getByCompanyAndDate(
+            @PathVariable Long companyId,
+            @RequestParam("start") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
+            @RequestParam("end") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end
+    ) {
+        return service.getByCompanyAndDate(companyId, start, end);
+    }
+
+
 }

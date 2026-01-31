@@ -20,14 +20,11 @@ public class SaleItem {
     @ManyToOne
     @JoinColumn(name = "sale_id")
     private Sale sale;
-
     @ManyToOne
     @JoinColumn(name = "product_id")
     private Product product;
-
     private Integer quantity;
-
     private BigDecimal unitPrice;
-
     private BigDecimal subtotal;
+    private BigDecimal taxAmount;
 }

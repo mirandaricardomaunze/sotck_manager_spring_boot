@@ -52,7 +52,17 @@ public class MovementService {
                 .orElseThrow(() -> new ResourceNotFoundException("Movimento não encontrado"));
         return mapper.toDTO(movement);
     }
+    // Lista movimentos por empresa
+    public List<MovementResponseDTO> getByCompany(Long companyId) {
+        Company company = companyRepository.findById(companyId)
+                .orElseThrow(() -> new ResourceNotFoundException("Empresa não encontrada"));
 
+        List<Movement> movements = movementRepository.findByCompany(company);
+
+        return movements.stream()
+                .map(mapper::toDTO)
+                .collect(Collectors.toList());
+    }
     // Lista todos
     public List<MovementResponseDTO> getAll() {
         return movementRepository.findAll()
@@ -60,6 +70,17 @@ public class MovementService {
                 .map(mapper::toDTO)
                 .collect(Collectors.toList());
     }
+    public List<MovementResponseDTO> getByCompanyAndDate(Long companyId, LocalDateTime start, LocalDateTime end) {
+        Company company = companyRepository.findById(companyId)
+                .orElseThrow(() -> new ResourceNotFoundException("Empresa não encontrada"));
+
+        List<Movement> movements = movementRepository.findByCompanyAndDateBetween(company, start, end);
+
+        return movements.stream()
+                .map(mapper::toDTO)
+                .collect(Collectors.toList());
+    }
+
     // FILTRAR POR DATA (CORRIGIDO)
     public List<MovementResponseDTO> filterByDate(LocalDateTime start, LocalDateTime end) {
         List<Movement> movements = movementRepository.findByDateBetween(start, end);

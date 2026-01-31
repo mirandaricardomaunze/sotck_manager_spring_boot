@@ -13,6 +13,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
+@Transactional
 public class ProductService {
 
     private final ProductRepository productRepository;
@@ -34,30 +35,24 @@ public class ProductService {
     }
 
     // ========================= CREATE =========================
-    @Transactional
     public ProductResponseDTO createProduct(ProductRequestDTO dto) {
 
-        Company company = companyRepository.findById(dto.getCompanyId())
-                .orElseThrow(() -> new ResourceNotFoundException("Empresa não encontrada"));
+        Company company = findCompany(dto.getCompanyId());
+        Warehouse warehouse = findWarehouse(dto.getWarehouseId());
+        Category category = findCategory(dto.getCategoryId());
+        Supplier supplier = findSupplier(dto.getSupplierId());
 
-        Warehouse warehouse = warehouseRepository.findById(dto.getWarehouseId())
-                .orElseThrow(() -> new ResourceNotFoundException("Armazém não encontrado"));
+        Product product = ProductMapper.fromRequestDTO(
+                dto, company, warehouse, category, supplier
+        );
 
-        Category category = categoryRepository.findById(dto.getCategoryId())
-                .orElseThrow(() -> new ResourceNotFoundException("Categoria não encontrada"));
-
-        Supplier supplier = dto.getSupplierId() != null
-                ? supplierRepository.findById(dto.getSupplierId())
-                .orElseThrow(() -> new ResourceNotFoundException("Fornecedor não encontrado"))
-                : null;
-
-        Product product = ProductMapper.fromRequestDTO(dto, company, warehouse, category, supplier);
         productRepository.save(product);
 
         return ProductMapper.toResponseDTO(product);
     }
 
     // ========================= READ ALL =========================
+    @Transactional(readOnly = true)
     public List<ProductResponseDTO> getAllProducts() {
         return productRepository.findAll()
                 .stream()
@@ -66,17 +61,16 @@ public class ProductService {
     }
 
     // ========================= READ BY ID =========================
+    @Transactional(readOnly = true)
     public ProductResponseDTO getProductById(Long id) {
-        Product product = productRepository.findById(id)
+        return productRepository.findById(id)
+                .map(ProductMapper::toResponseDTO)
                 .orElseThrow(() ->
                         new ResourceNotFoundException("Produto não encontrado com id " + id)
                 );
-
-        return ProductMapper.toResponseDTO(product);
     }
 
     // ========================= UPDATE =========================
-    @Transactional
     public ProductResponseDTO updateProduct(Long id, ProductRequestDTO dto) {
 
         Product product = productRepository.findById(id)
@@ -84,29 +78,19 @@ public class ProductService {
                         new ResourceNotFoundException("Produto não encontrado com id " + id)
                 );
 
-        Company company = companyRepository.findById(dto.getCompanyId())
-                .orElseThrow(() -> new ResourceNotFoundException("Empresa não encontrada"));
+        Company company = findCompany(dto.getCompanyId());
+        Warehouse warehouse = findWarehouse(dto.getWarehouseId());
+        Category category = findCategory(dto.getCategoryId());
+        Supplier supplier = findSupplier(dto.getSupplierId());
 
-        Warehouse warehouse = warehouseRepository.findById(dto.getWarehouseId())
-                .orElseThrow(() -> new ResourceNotFoundException("Armazém não encontrado"));
-
-        Category category = categoryRepository.findById(dto.getCategoryId())
-                .orElseThrow(() -> new ResourceNotFoundException("Categoria não encontrada"));
-
-        Supplier supplier = dto.getSupplierId() != null
-                ? supplierRepository.findById(dto.getSupplierId())
-                .orElseThrow(() -> new ResourceNotFoundException("Fornecedor não encontrado"))
-                : null;
-
-        ProductMapper.updateEntityFromRequestDTO(product, dto, company, warehouse, category, supplier);
-
-        productRepository.save(product);
+        ProductMapper.updateEntityFromRequestDTO(
+                product, dto, company, warehouse, category, supplier
+        );
 
         return ProductMapper.toResponseDTO(product);
     }
 
-    // ========================= DELETE =========================
-    @Transactional
+    // ========================= DELETE (soft delete recomendado) =========================
     public void deleteProduct(Long id) {
 
         Product product = productRepository.findById(id)
@@ -114,17 +98,18 @@ public class ProductService {
                         new ResourceNotFoundException("Produto não encontrado com id " + id)
                 );
 
-        productRepository.delete(product);
+        // Soft delete (boa prática)
+        product.setIsActive(false);
     }
 
     // ========================= STATISTICS (DASHBOARD) =========================
 
-    /** Total de produtos da empresa */
+    @Transactional(readOnly = true)
     public long getTotalProductsInCompany(Long companyId) {
         return productRepository.countByCompanyId(companyId);
     }
 
-    /** Produtos abaixo do stock mínimo */
+    @Transactional(readOnly = true)
     public long getProductsBelowMinStock(Long companyId) {
         return productRepository.findByCompanyId(companyId)
                 .stream()
@@ -132,26 +117,49 @@ public class ProductService {
                 .count();
     }
 
-    /** Valor total de todos os produtos da empresa */
+    @Transactional(readOnly = true)
     public double getTotalValueOfProducts(Long companyId) {
         return productRepository.findByCompanyId(companyId)
                 .stream()
-                .mapToDouble(p -> p.getSellingPrice().doubleValue() * p.getQuantityInStock())
+                .mapToDouble(p ->
+                        p.getSellingPrice().doubleValue() * p.getQuantityInStock()
+                )
                 .sum();
     }
 
-    /** Quantidade de produtos por categoria (para gráfico Pie) */
+    @Transactional(readOnly = true)
     public Map<String, Long> getProductsByCategory(Long companyId) {
 
         List<Object[]> results = productRepository.countProductsByCategory(companyId);
-        Map<String, Long> map = new HashMap<>();
+        Map<String, Long> response = new HashMap<>();
 
         for (Object[] row : results) {
-            String categoryName = (String) row[0];
-            Long count = (Long) row[1];
-            map.put(categoryName, count);
+            response.put((String) row[0], (Long) row[1]);
         }
 
-        return map;
+        return response;
+    }
+
+    // ========================= MÉTODOS AUXILIARES =========================
+
+    private Company findCompany(Long id) {
+        return companyRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Empresa não encontrada"));
+    }
+
+    private Warehouse findWarehouse(Long id) {
+        return warehouseRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Armazém não encontrado"));
+    }
+
+    private Category findCategory(Long id) {
+        return categoryRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Categoria não encontrada"));
+    }
+
+    private Supplier findSupplier(Long id) {
+        if (id == null) return null;
+        return supplierRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Fornecedor não encontrado"));
     }
 }

@@ -1,6 +1,6 @@
 package com.stock.stockmanager.controller;
 
-import com.stock.stockmanager.dto.StockDTO;
+import com.stock.stockmanager.dto.StockResponseDTO;
 import com.stock.stockmanager.dto.StockRequestDTO;
 import com.stock.stockmanager.dto.StockSummaryDTO;
 import com.stock.stockmanager.service.StockService;
@@ -21,12 +21,12 @@ public class StockController {
     // LISTA TODO O STOCK
     // ===============================================
     @GetMapping
-    public ResponseEntity<List<StockDTO>> getAll() {
+    public ResponseEntity<List<StockResponseDTO>> getAll() {
         return ResponseEntity.ok(stockService.getAll());
     }
 
     @PostMapping
-    public ResponseEntity<StockDTO> createOrUpdate(@RequestBody StockRequestDTO dto) {
+    public ResponseEntity<StockResponseDTO> createOrUpdate(@RequestBody StockRequestDTO dto) {
         return ResponseEntity.ok(stockService.createOrUpdate(dto));
     }
 
@@ -34,7 +34,7 @@ public class StockController {
     // STOCK POR ARMAZÉM
     // ===============================================
     @GetMapping("/warehouse/{id}")
-    public ResponseEntity<List<StockDTO>> getAllByWarehouse(@PathVariable("id") Long warehouseId) {
+    public ResponseEntity<List<StockResponseDTO>> getAllByWarehouse(@PathVariable("id") Long warehouseId) {
         return ResponseEntity.ok(stockService.getAllByWarehouse(warehouseId));
     }
 
@@ -42,7 +42,7 @@ public class StockController {
     // STOCK POR PRODUTO
     // ===============================================
     @GetMapping("/product/{id}")
-    public ResponseEntity<List<StockDTO>> getAllByProduct(@PathVariable("id") Long productId) {
+    public ResponseEntity<List<StockResponseDTO>> getAllByProduct(@PathVariable("id") Long productId) {
         return ResponseEntity.ok(stockService.getAllByProduct(productId));
     }
 

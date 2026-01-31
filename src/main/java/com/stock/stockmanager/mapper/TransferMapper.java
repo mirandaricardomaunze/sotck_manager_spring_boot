@@ -1,6 +1,6 @@
 package com.stock.stockmanager.mapper;
 
-import com.stock.stockmanager.dto.StockDTO;
+import com.stock.stockmanager.dto.StockResponseDTO;
 import com.stock.stockmanager.dto.TransferResponseDTO;
 import com.stock.stockmanager.model.Stock;
 import com.stock.stockmanager.model.Transfer;
@@ -49,9 +49,10 @@ public class TransferMapper {
 
         // Usuário
         if (transfer.getUser() != null) {
-            dto.setUser(transfer.getUser().getUsername());
-            dto.setUserId(transfer.getUser().getId());
+            dto.setUser(transfer.getUser().getUsername()); // Nome do usuário
+            dto.setUserId(transfer.getUser().getId());      // ID do usuário ✅
         }
+
         dto.setStockSource(toStockDTO(stockOrigin));
         dto.setStockDestination(toStockDTO(stockDestination));
 
@@ -61,9 +62,9 @@ public class TransferMapper {
     // ==============================
     // STOCK → STOCK DTO
     // ==============================
-    private StockDTO toStockDTO(Stock stock) {
+    private StockResponseDTO toStockDTO(Stock stock) {
         if (stock == null) return null;
-        StockDTO s = new StockDTO();
+        StockResponseDTO s = new StockResponseDTO();
 
         s.setId(stock.getId());
         s.setQuantity(stock.getQuantity());

@@ -1,7 +1,7 @@
 package com.stock.stockmanager.mapper;
 
-import com.stock.stockmanager.dto.SaleRequestDTO;
 import com.stock.stockmanager.dto.SaleItemRequestDTO;
+import com.stock.stockmanager.dto.SaleRequestDTO;
 import com.stock.stockmanager.dto.SaleItemResponseDTO;
 import com.stock.stockmanager.dto.SaleResponseDTO;
 import com.stock.stockmanager.enums.SaleStatus;
@@ -9,6 +9,7 @@ import com.stock.stockmanager.model.Company;
 import com.stock.stockmanager.model.Product;
 import com.stock.stockmanager.model.Sale;
 import com.stock.stockmanager.model.SaleItem;
+import com.stock.stockmanager.model.User;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -33,13 +34,14 @@ public class SaleMapper {
                 .status(sale.getStatus())
                 .saleDate(sale.getSaleDate())
                 .companyId(sale.getCompany() != null ? sale.getCompany().getId() : null)
+                .userId(sale.getUserName() != null ? sale.getUserName().getId() : null)          // ✅ Corrigido
+                .userName(sale.getUserName() != null ? sale.getUserName().getUsername() : null)  // ✅ Corrigido
                 .items(
-                (sale.getItems() == null ? Collections.<SaleItem>emptyList() : sale.getItems())
-                        .stream()
-                        .map(item -> toItemDTO(item))
-                        .collect(Collectors.toList())
+                        (sale.getItems() == null ? Collections.<SaleItem>emptyList() : sale.getItems())
+                                .stream()
+                                .map(this::toItemDTO)
+                                .collect(Collectors.toList())
                 )
-
                 .build();
     }
 
@@ -55,12 +57,13 @@ public class SaleMapper {
     }
 
     // ---------------- TO ENTITY ----------------
-    public Sale toEntity(SaleRequestDTO dto, Company company) {
+    public Sale toEntity(SaleRequestDTO dto, Company company, User user) {
 
         Sale sale = new Sale();
         sale.setClientName(dto.getClientName());
         sale.setPaymentMethod(dto.getPaymentMethod());
         sale.setCompany(company);
+        sale.setUserName(user);  // ✅ Corrigido: seta o usuário corretamente
 
         sale.setDiscount(dto.getDiscount() != null ? dto.getDiscount() : BigDecimal.ZERO);
         sale.setAmountPaid(dto.getAmountPaid() != null ? dto.getAmountPaid() : BigDecimal.ZERO);
@@ -81,6 +84,7 @@ public class SaleMapper {
                         ? dto.getUnitPrice()
                         : product.getSellingPrice()
         );
+        item.setSubtotal(dto.getSubtotal()); // ✅ seta subtotal corretamente
         return item;
     }
 }

@@ -6,12 +6,10 @@ import com.stock.stockmanager.enums.OrderStatus;
 import com.stock.stockmanager.exception.BusinessException;
 import com.stock.stockmanager.exception.ResourceNotFoundException;
 import com.stock.stockmanager.mapper.InvoiceMapper;
-import com.stock.stockmanager.model.Invoice;
-import com.stock.stockmanager.model.Order;
-import com.stock.stockmanager.model.OrderItem;
+import com.stock.stockmanager.model.*;
 import com.stock.stockmanager.repository.InvoiceRepository;
 import com.stock.stockmanager.repository.OrderRepository;
-import com.stock.stockmanager.repository.ProductRepository;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,69 +22,93 @@ public class InvoiceService {
 
     private final InvoiceRepository invoiceRepository;
     private final OrderRepository orderRepository;
-        private final ProductRepository productRepository;
+    private final StockService stockService;
 
     public InvoiceService(
             InvoiceRepository invoiceRepository,
-            ProductRepository productRepository,
-            OrderRepository orderRepository) {
+            OrderRepository orderRepository,
+            StockService stockService
+    ) {
         this.invoiceRepository = invoiceRepository;
         this.orderRepository = orderRepository;
-        this.productRepository=productRepository;
+        this.stockService = stockService;
     }
 
+
+    // =======================================================
+    // 1️⃣ Criar fatura a partir do número do pedido
+    // =======================================================
     @Transactional
     public InvoiceDTO createInvoiceFromOrderNumber(String orderNumber) {
-        System.out.println("Tentando criar fatura para o pedido: " + orderNumber);
+
         Order order = orderRepository.findByOrderNumber(orderNumber)
-                .orElseThrow(() -> {
-                    System.out.println("Pedido não encontrado com número: " + orderNumber);
-                    return new IllegalArgumentException("Pedido não encontrado com número: " + orderNumber);
-                });
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Pedido não encontrado: " + orderNumber)
+                );
+
+        // Validar status do pedido
+        if (order.getStatus() == OrderStatus.CANCELED) {
+            throw new BusinessException("Não é possível criar fatura de um pedido CANCELADO.");
+        }
+        if (order.getStatus() == OrderStatus.DRAFT) {
+            throw new BusinessException("O pedido ainda está em rascunho. Finalize antes de faturar.");
+        }
+
+        // Evitar duplicação
         if (invoiceRepository.existsByOrder_OrderNumber(orderNumber)) {
-            System.out.println("Já existe uma fatura para o pedido: " + orderNumber);
-            throw new IllegalStateException("Já existe uma fatura para o pedido: " + orderNumber);
+            throw new BusinessException("Já existe uma fatura para este pedido.");
         }
 
-        // 3️⃣ Validar estoque
+        // Validar estoque antes de tudo
         for (OrderItem item : order.getItems()) {
-            if (item.getProduct() == null) {
-                System.out.println("Item do pedido sem produto associado: " + item.getId());
-                throw new ResourceNotFoundException("Item do pedido sem produto associado: " + item.getId());
-            }
-            if (item.getQuantity() > item.getProduct().getQuantityInStock()) {
-                System.out.println("Estoque insuficiente para o produto: " + item.getProduct().getName());
-                throw new BusinessException("Estoque insuficiente para o produto: " + item.getProduct().getName());
+            Stock stock = stockService.getStockByProductAndWarehouse(
+                    item.getProduct(),
+                    order.getWarehouse()
+            );
+
+            if (stock.getQuantity() < item.getQuantity()) {
+                throw new BusinessException(
+                        "Estoque insuficiente para o produto: " + item.getProduct().getName()
+                );
             }
         }
 
-        // 4️⃣ Criar fatura
+        // 1) Criar a fatura
         Invoice invoice = InvoiceMapper.fromOrder(order);
+        invoice.setStatus(InvoiceStatus.INVOICED);
         Invoice savedInvoice = invoiceRepository.save(invoice);
-        System.out.println("Fatura criada com sucesso: " + savedInvoice.getInvoiceNumber());
 
-        // 5️⃣ Atualizar estoque
+        // 2) Deduzir estoque ‘item’ por item
         for (OrderItem item : order.getItems()) {
-            item.getProduct().setQuantityInStock(item.getProduct().getQuantityInStock() - item.getQuantity());
-            productRepository.save(item.getProduct());
+            stockService.decreaseStock(
+                    item.getProduct().getId(),
+                    order.getWarehouse().getId(),
+                    item.getQuantity()
+            );
         }
+
+        // 3) Atualizar pedido
         order.setStatus(OrderStatus.INVOICED);
         orderRepository.save(order);
-        System.out.println("Estoque atualizado para o pedido: " + orderNumber);
 
         return InvoiceMapper.toDTO(savedInvoice);
     }
 
-    /** Retorna todas as faturas */
+
+    // =======================================================
+    // 2️⃣ Listar todas as faturas
+    // =======================================================
     @Transactional(readOnly = true)
     public List<InvoiceDTO> getAllInvoices() {
-        return invoiceRepository.findAll()
-                .stream()
+        return invoiceRepository.findAll().stream()
                 .map(InvoiceMapper::toDTO)
                 .collect(Collectors.toList());
     }
 
-    /** Retorna as faturas de um pedido específico */
+
+    // =======================================================
+    // 3️⃣ Buscar por número do pedido
+    // =======================================================
     @Transactional(readOnly = true)
     public List<InvoiceDTO> getInvoicesByOrderNumber(String orderNumber) {
         return invoiceRepository.findByOrder_OrderNumber(orderNumber)
@@ -95,87 +117,111 @@ public class InvoiceService {
                 .collect(Collectors.toList());
     }
 
-    /** Busca uma fatura pelo ID */
+
+    // =======================================================
+    // 4️⃣ Buscar por ID
+    // =======================================================
     @Transactional(readOnly = true)
     public Optional<InvoiceDTO> getInvoiceById(Long id) {
         return invoiceRepository.findById(id)
                 .map(InvoiceMapper::toDTO);
     }
 
-     /**
-     * Busca faturas por status (PAGO, PENDENTE, CANCELADO)
-     */
+
+    // =======================================================
+    // 5️⃣ Buscar por status
+    // =======================================================
     @Transactional(readOnly = true)
     public List<InvoiceDTO> getInvoicesByStatus(String status) {
-        System.out.println("Buscando faturas com status: " + status);
+        InvoiceStatus st = parseStatus(status);
 
-        // Validar status
-        if (!isValidStatus(status)) {
-            throw new IllegalArgumentException("Status inválido: " + status + ". Status válidos: PAGO, PENDENTE, CANCELADO");
-        }
-
-        List<InvoiceDTO> invoices = invoiceRepository.findByStatus(InvoiceStatus.valueOf(status))
-                .stream()
+        return invoiceRepository.findByStatus(st).stream()
                 .map(InvoiceMapper::toDTO)
                 .collect(Collectors.toList());
-
-        System.out.println("Encontradas " + invoices.size() + " faturas com status: " + status);
-        return invoices;
     }
 
-    /**
-     * Atualiza o status de uma fatura
-     */
+
+    // =======================================================
+    // 6️⃣ Atualizar status da fatura
+    // =======================================================
     @Transactional
     public InvoiceDTO updateInvoiceStatus(Long id, String status) {
-        System.out.println("Atualizando status da fatura ID: " + id + " para: " + status);
-
-        // Validar status
-        if (!isValidStatus(status)) {
-            throw new ResourceNotFoundException("Status inválido: " + status + ". Status válidos: PAGO, PENDENTE, CANCELADO");
-        }
 
         Invoice invoice = invoiceRepository.findById(id)
-                .orElseThrow(() -> {
-                    System.out.println("Fatura não encontrada com ID: " + id);
-                    return new ResourceNotFoundException("Fatura não encontrada com ID: " + id);
-                });
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Fatura não encontrada com ID: " + id)
+                );
 
-        String oldStatus = invoice.getStatus().name();
-        invoice.setStatus(InvoiceStatus.valueOf(status.toUpperCase()));
+        invoice.setStatus(parseStatus(status));
+        Invoice updated = invoiceRepository.save(invoice);
 
-        Invoice updatedInvoice = invoiceRepository.save(invoice);
-        System.out.println("Status da fatura " + id + " atualizado de '" + oldStatus + "' para '" + status + "'");
-
-        return InvoiceMapper.toDTO(updatedInvoice);
+        return InvoiceMapper.toDTO(updated);
     }
 
-    /**
-     * Exclui uma fatura
-     */
+
+    // =======================================================
+    // 7️⃣ Eliminar fatura
+    // =======================================================
     @Transactional
     public void deleteInvoice(Long id) {
-        System.out.println("Tentando excluir fatura com ID: " + id);
 
         if (!invoiceRepository.existsById(id)) {
-            System.out.println("Fatura não encontrada para exclusão: " + id);
-            throw new ResourceNotFoundException("Fatura não encontrada com ID: " + id);
+            throw new ResourceNotFoundException("Fatura não encontrada.");
         }
 
         invoiceRepository.deleteById(id);
-        System.out.println("Fatura excluída com sucesso: " + id);
     }
 
-    /**
-     * Valida se o status é válido
-     */
-    private boolean isValidStatus(String status) {
-        if (status == null) return false;
 
-        String normalizedStatus = status.toUpperCase();
-        return normalizedStatus.equals("PAID") ||
-                normalizedStatus.equals("INVOICED") ||
-                normalizedStatus.equals("PENDING") ||
-                normalizedStatus.equals("CANCELED");
+    // =======================================================
+    // 8️⃣ Cancelar fatura + devolver estoque
+    // =======================================================
+    @Transactional
+    public InvoiceDTO cancelInvoice(Long invoiceId) {
+
+        Invoice invoice = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new ResourceNotFoundException("Fatura não encontrada."));
+
+        if (invoice.getStatus() == InvoiceStatus.CANCELED) {
+            throw new BusinessException("A fatura já está cancelada.");
+        }
+
+        Order order = invoice.getOrder();
+        if (order == null) {
+            throw new BusinessException("A fatura não está associada a um pedido.");
+        }
+
+        // Devolver estoque item a item
+        for (InvoiceItem item : invoice.getItems()) {
+
+            stockService.increaseStock(
+                    item.getProduct().getId(),
+                    order.getWarehouse().getId(),
+                    item.getQuantity()
+            );
+        }
+
+        // Atualizar status da fatura
+        invoice.setStatus(InvoiceStatus.CANCELED);
+
+        // Atualizar pedido
+        order.setStatus(OrderStatus.CANCELED);
+
+        invoiceRepository.save(invoice);
+        orderRepository.save(order);
+
+        return InvoiceMapper.toDTO(invoice);
+    }
+
+
+    // =======================================================
+    // Conversão String → ENUM
+    // =======================================================
+    private InvoiceStatus parseStatus(String status) {
+        try {
+            return InvoiceStatus.valueOf(status.toUpperCase());
+        } catch (Exception e) {
+            throw new BusinessException("Status inválido: " + status);
+        }
     }
 }

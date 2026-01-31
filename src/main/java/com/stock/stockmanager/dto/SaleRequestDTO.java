@@ -16,10 +16,10 @@ public class SaleRequestDTO {
 
     @NotBlank(message = "O nome do cliente é obrigatório")
     private String clientName;
-
+    @NotNull(message = "Armazém é obrigatório")
+    private Long warehouseId;
     @NotNull(message = "A empresa é obrigatória")
     private Long companyId;
-
     @NotNull(message = "O valor pago é obrigatório")
     private BigDecimal amountPaid;
 
@@ -30,7 +30,8 @@ public class SaleRequestDTO {
 
     @NotNull(message = "Itens da venda são obrigatórios")
     private List<SaleItemRequestDTO> items;
-
+    private Long userId;
+    private String userName;
     // Validação básica
     public boolean isValid() {
         return clientName != null && !clientName.isBlank()

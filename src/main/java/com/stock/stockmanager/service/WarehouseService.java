@@ -6,16 +6,14 @@ import com.stock.stockmanager.enums.WarehouseStatus;
 import com.stock.stockmanager.exception.BusinessException;
 import com.stock.stockmanager.exception.DuplicateResourceException;
 import com.stock.stockmanager.exception.ResourceNotFoundException;
-import com.stock.stockmanager.model.Warehouse;
 import com.stock.stockmanager.model.Company;
+import com.stock.stockmanager.model.Warehouse;
 import com.stock.stockmanager.repository.CompanyRepository;
 import com.stock.stockmanager.repository.WarehouseRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -30,54 +28,58 @@ public class WarehouseService {
         this.companyRepository = companyRepository;
     }
 
-    // ===== CREATE =====
-    public WarehouseResponseDTO createWarehouse(WarehouseRequestDTO requestDTO) {
-        validateWarehouseDTO(requestDTO);
+    // ================= CREATE =================
+    public WarehouseResponseDTO createWarehouse(WarehouseRequestDTO dto) {
+        validateWarehouseDTO(dto);
 
-        // Verifica email duplicado
-        if (requestDTO.getEmail() != null && !requestDTO.getEmail().isEmpty()) {
-            Optional<Warehouse> existing = warehouseRepository.findByEmail(requestDTO.getEmail());
-            if (existing.isPresent()) {
-                throw new DuplicateResourceException("Já existe um warehouse com esse email");
-            }
+        if (dto.getEmail() != null && !dto.getEmail().isBlank()) {
+            warehouseRepository.findByEmail(dto.getEmail())
+                    .ifPresent(w -> {
+                        throw new DuplicateResourceException(
+                                "Já existe um armazém com esse email");
+                    });
         }
 
-        Warehouse warehouse = dtoToEntity(requestDTO);
-        warehouse.setStatus(requestDTO.isActive() ? WarehouseStatus.ACTIVE : WarehouseStatus.INACTIVE);
+        Warehouse warehouse = dtoToEntity(dto);
 
-        // Se for marcado como principal, desmarcar outros da empresa
-        if (requestDTO.isPrincipal()) {
+        if (dto.isPrincipal()) {
             unsetPrincipalByCompany(warehouse.getCompany().getId());
             warehouse.setPrincipal(true);
         }
 
-        warehouse = warehouseRepository.save(warehouse);
-        return entityToResponseDTO(warehouse);
+        return entityToResponseDTO(warehouseRepository.save(warehouse));
     }
 
-    // ===== READ ALL =====
-    public List<WarehouseResponseDTO> getAllWarehouses() {
-        return warehouseRepository.findAll()
-                .stream()
-                .map(this::entityToResponseDTO)
-                .collect(Collectors.toList());
-    }
-
-    // ===== READ BY ID =====
+    // ================= READ =================
     public WarehouseResponseDTO getWarehouseById(Long id) {
         Warehouse warehouse = warehouseRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Warehouse não encontrado"));
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Warehouse não encontrado"));
         return entityToResponseDTO(warehouse);
     }
 
-    // ===== READ BY COMPANY ID =====
-    public List<WarehouseResponseDTO> getWarehousesByCompany(Long companyId) {
-        return warehouseRepository.findByCompanyIdAndPrincipalTrue(companyId)
+    /** Somente armazéns ativos (ComboBox / POS) */
+    public List<WarehouseResponseDTO> getActiveWarehousesByCompany(Long companyId) {
+        return warehouseRepository
+                .findByCompanyIdAndStatus(companyId, WarehouseStatus.ACTIVE)
                 .stream()
                 .map(this::entityToResponseDTO)
                 .toList();
     }
 
+    /** Armazém principal */
+    public WarehouseResponseDTO getPrincipalWarehouseByCompany(Long companyId) {
+        return warehouseRepository
+                .findByCompanyIdAndPrincipalTrue(companyId)
+                .stream()
+                .findFirst()
+                .map(this::entityToResponseDTO)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "Nenhum armazém principal encontrado"));
+    }
+
+    /** Todos os armazéns da empresa */
     public List<WarehouseResponseDTO> getAllWarehousesByCompany(Long companyId) {
         return warehouseRepository.findByCompanyId(companyId)
                 .stream()
@@ -85,63 +87,65 @@ public class WarehouseService {
                 .toList();
     }
 
-    // ===== UPDATE =====
-    public WarehouseResponseDTO updateWarehouse(Long id, WarehouseRequestDTO requestDTO) {
-        validateWarehouseDTO(requestDTO);
+    // ================= UPDATE =================
+    public WarehouseResponseDTO updateWarehouse(Long id, WarehouseRequestDTO dto) {
+        validateWarehouseDTO(dto);
 
         Warehouse existing = warehouseRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Warehouse não encontrado"));
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Warehouse não encontrado"));
 
-        existing.setName(requestDTO.getName());
-        existing.setLocation(requestDTO.getLocation());
-        existing.setDescription(requestDTO.getDescription());
-        existing.setCapacity(requestDTO.getCapacity());
-        existing.setEmail(requestDTO.getEmail());
-        existing.setPhone(requestDTO.getPhone());
-        existing.setManager(requestDTO.getManager());
-        existing.setStatus(requestDTO.isActive() ? WarehouseStatus.ACTIVE : WarehouseStatus.INACTIVE);
+        updateEntity(existing, dto);
 
-        // Atualiza empresa
-        if (requestDTO.getCompanyId() != null) {
-            Company company = companyRepository.findById(requestDTO.getCompanyId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Empresa não encontrada"));
+        // Atualiza empresa se mudou
+        if (!existing.getCompany().getId().equals(dto.getCompanyId())) {
+            Company company = companyRepository.findById(dto.getCompanyId())
+                    .orElseThrow(() ->
+                            new ResourceNotFoundException("Empresa não encontrada"));
             existing.setCompany(company);
         }
 
-        // Se for principal, desmarca os outros
-        if (requestDTO.isPrincipal()) {
+        if (dto.isPrincipal()) {
             unsetPrincipalByCompany(existing.getCompany().getId());
             existing.setPrincipal(true);
         } else {
             existing.setPrincipal(false);
         }
 
-        Warehouse updated = warehouseRepository.save(existing);
-        return entityToResponseDTO(updated);
+        return entityToResponseDTO(warehouseRepository.save(existing));
     }
 
-    // ===== DELETE =====
+    // ================= DELETE =================
     public void deleteWarehouse(Long id) {
-        Warehouse existing = warehouseRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Warehouse não encontrado"));
-        warehouseRepository.delete(existing);
+        Warehouse warehouse = warehouseRepository.findById(id)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Warehouse não encontrado"));
+        warehouseRepository.delete(warehouse);
     }
 
-    // ===== SET PRINCIPAL =====
+    // ================= PRINCIPAL =================
     public WarehouseResponseDTO setPrincipalWarehouse(Long warehouseId) {
         Warehouse warehouse = warehouseRepository.findById(warehouseId)
-                .orElseThrow(() -> new ResourceNotFoundException("Warehouse não encontrado"));
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Warehouse não encontrado"));
 
         unsetPrincipalByCompany(warehouse.getCompany().getId());
         warehouse.setPrincipal(true);
-        Warehouse updated = warehouseRepository.save(warehouse);
 
-        return entityToResponseDTO(updated);
+        return entityToResponseDTO(warehouseRepository.save(warehouse));
     }
 
-    // ===== HELPER METHODS =====
+    // ================= HELPERS =================
+    private void unsetPrincipalByCompany(Long companyId) {
+        warehouseRepository.findByCompanyIdAndPrincipalTrue(companyId)
+                .forEach(w -> {
+                    w.setPrincipal(false);
+                    warehouseRepository.save(w);
+                });
+    }
+
     private void validateWarehouseDTO(WarehouseRequestDTO dto) {
-        if (dto.getName() == null || dto.getName().trim().isEmpty()) {
+        if (dto.getName() == null || dto.getName().isBlank()) {
             throw new BusinessException("Nome é obrigatório");
         }
         if (dto.getCapacity() <= 0) {
@@ -154,6 +158,19 @@ public class WarehouseService {
 
     private Warehouse dtoToEntity(WarehouseRequestDTO dto) {
         Warehouse warehouse = new Warehouse();
+        updateEntity(warehouse, dto);
+
+        Company company = companyRepository.findById(dto.getCompanyId())
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Empresa não encontrada"));
+
+        warehouse.setCompany(company);
+        warehouse.setPrincipal(dto.isPrincipal());
+
+        return warehouse;
+    }
+
+    private void updateEntity(Warehouse warehouse, WarehouseRequestDTO dto) {
         warehouse.setName(dto.getName());
         warehouse.setLocation(dto.getLocation());
         warehouse.setDescription(dto.getDescription());
@@ -161,16 +178,9 @@ public class WarehouseService {
         warehouse.setEmail(dto.getEmail());
         warehouse.setPhone(dto.getPhone());
         warehouse.setManager(dto.getManager());
-        warehouse.setStatus(dto.isActive() ? WarehouseStatus.ACTIVE : WarehouseStatus.INACTIVE);
-
-        // Associa empresa
-        Company company = companyRepository.findById(dto.getCompanyId())
-                .orElseThrow(() -> new ResourceNotFoundException("Empresa não encontrada"));
-        warehouse.setCompany(company);
-
-        warehouse.setPrincipal(dto.isPrincipal());
-
-        return warehouse;
+        warehouse.setStatus(
+                dto.isActive() ? WarehouseStatus.ACTIVE : WarehouseStatus.INACTIVE
+        );
     }
 
     private WarehouseResponseDTO entityToResponseDTO(Warehouse warehouse) {
@@ -192,13 +202,5 @@ public class WarehouseService {
         }
 
         return dto;
-    }
-
-    private void unsetPrincipalByCompany(Long companyId) {
-        List<Warehouse> warehouses = warehouseRepository.findByCompanyIdAndPrincipalTrue(companyId);
-        for (Warehouse w : warehouses) {
-            w.setPrincipal(false);
-            warehouseRepository.save(w);
-        }
     }
 }

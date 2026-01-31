@@ -20,13 +20,18 @@ public class InvoiceController {
         this.invoiceReportService = invoiceReportService;
     }
 
-    // --- ENDPOINTS EXISTENTES (MANTIDOS) ---
-    @PostMapping("/create/{orderNumber}")
-    public ResponseEntity<InvoiceDTO> createInvoice(@PathVariable String orderNumber) {
+    // ========================
+    // CRIAÇÃO DE FATURA
+    // ========================
+    @PostMapping
+    public ResponseEntity<InvoiceDTO> createInvoice(@RequestParam String orderNumber) {
         InvoiceDTO invoice = invoiceService.createInvoiceFromOrderNumber(orderNumber);
         return ResponseEntity.status(201).body(invoice);
     }
 
+    // ========================
+    // LISTAGEM DE FATURAS
+    // ========================
     @GetMapping
     public ResponseEntity<List<InvoiceDTO>> getAllInvoices() {
         List<InvoiceDTO> invoices = invoiceService.getAllInvoices();
@@ -36,102 +41,81 @@ public class InvoiceController {
     @GetMapping("/order/{orderNumber}")
     public ResponseEntity<List<InvoiceDTO>> getInvoicesByOrderNumber(@PathVariable String orderNumber) {
         List<InvoiceDTO> invoices = invoiceService.getInvoicesByOrderNumber(orderNumber);
-        if (invoices.isEmpty()) {
-            throw new IllegalArgumentException("Nenhuma fatura encontrada para o pedido: " + orderNumber);
-        }
-        return ResponseEntity.ok(invoices);
-    }
-
-    @GetMapping("/{id}")
-    public ResponseEntity<InvoiceDTO> getInvoiceById(@PathVariable Long id) {
-        return invoiceService.getInvoiceById(id)
-                .map(ResponseEntity::ok)
-                .orElseThrow(() -> new IllegalArgumentException("Fatura não encontrada com ID: " + id));
-    }
-
-    @GetMapping("/{id}/export/pdf")
-    public ResponseEntity<byte[]> exportInvoicePdf(@PathVariable Long id) {
-        try {
-            byte[] data = invoiceReportService.exportInvoiceToPdf(id);
-            return ResponseEntity.ok()
-                    .header("Content-Disposition", "inline; filename=fatura_" + id + ".pdf")
-                    .header("Content-Type", "application/pdf")
-                    .body(data);
-        } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.status(500)
-                    .header("Content-Type", "text/plain")
-                    .body(("Falha ao exportar PDF: " + e.getMessage()).getBytes());
-        }
-    }
-
-    @GetMapping("/{id}/export/excel")
-    public ResponseEntity<byte[]> exportInvoiceExcel(@PathVariable Long id) {
-        try {
-            byte[] data = invoiceReportService.exportInvoiceToExcel(id);
-            return ResponseEntity.ok()
-                    .header("Content-Disposition", "attachment; filename=fatura_" + id + ".xlsx")
-                    .header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                    .body(data);
-        } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.status(500)
-                    .header("Content-Type", "text/plain")
-                    .body(("Falha ao exportar Excel: " + e.getMessage()).getBytes());
-        }
-    }
-
-    // --- NOVOS ENDPOINTS ADICIONADOS ---
-
-    @GetMapping("/{id}/preview")
-    public ResponseEntity<byte[]> previewInvoice(@PathVariable Long id) {
-        try {
-            byte[] data = invoiceReportService.exportInvoiceToPdf(id);
-            return ResponseEntity.ok()
-                    .header("Content-Disposition", "inline; filename=preview_fatura_" + id + ".pdf")
-                    .header("Content-Type", "application/pdf")
-                    .body(data);
-        } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.status(500)
-                    .header("Content-Type", "text/plain")
-                    .body(("Falha ao visualizar fatura: " + e.getMessage()).getBytes());
-        }
+        return invoices.isEmpty() ? ResponseEntity.noContent().build() : ResponseEntity.ok(invoices);
     }
 
     @GetMapping("/status/{status}")
     public ResponseEntity<List<InvoiceDTO>> getInvoicesByStatus(@PathVariable String status) {
         List<InvoiceDTO> invoices = invoiceService.getInvoicesByStatus(status);
-        if (invoices.isEmpty()) {
-            throw new IllegalArgumentException("Nenhuma fatura encontrada com status: " + status);
-        }
-        return ResponseEntity.ok(invoices);
+        return invoices.isEmpty() ? ResponseEntity.noContent().build() : ResponseEntity.ok(invoices);
     }
 
+    // ========================
+    // BUSCAR POR ID
+    // ========================
+    @GetMapping("/{id}")
+    public ResponseEntity<InvoiceDTO> getInvoiceById(@PathVariable Long id) {
+        return invoiceService.getInvoiceById(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    // ========================
+    // CANCELAMENTO DE FATURA
+    // ========================
+    @PutMapping("/{id}/cancel")
+    public ResponseEntity<InvoiceDTO> cancelInvoice(@PathVariable Long id) {
+        InvoiceDTO canceled = invoiceService.cancelInvoice(id);
+        return ResponseEntity.ok(canceled);
+    }
+
+    // ========================
+    // ATUALIZAÇÃO DE STATUS
+    // ========================
     @PutMapping("/{id}/status/{status}")
     public ResponseEntity<InvoiceDTO> updateInvoiceStatus(@PathVariable Long id, @PathVariable String status) {
         InvoiceDTO updatedInvoice = invoiceService.updateInvoiceStatus(id, status);
         return ResponseEntity.ok(updatedInvoice);
     }
 
+    // ========================
+    // EXCLUSÃO DE FATURA
+    // ========================
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteInvoice(@PathVariable Long id) {
         invoiceService.deleteInvoice(id);
         return ResponseEntity.noContent().build();
     }
 
-    @GetMapping("/{id}/html")
-    public ResponseEntity<String> exportInvoiceHtml(@PathVariable Long id) {
-        try {
-            // Assumindo que você vai adicionar este método no service
-            byte[] htmlData = invoiceReportService.exportInvoiceToPdf(id);
-            return ResponseEntity.ok()
-                    .header("Content-Type", "text/html")
-                    .body(new String(htmlData));
-        } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.status(500)
-                    .body("Falha ao exportar HTML: " + e.getMessage());
-        }
+    // ========================
+    // EXPORTAÇÃO E PREVIEW
+    // ========================
+    @GetMapping("/{id}/export/pdf")
+    public ResponseEntity<byte[]> exportInvoicePdf(@PathVariable Long id) {
+        byte[] data = invoiceReportService.exportInvoiceToPdf(id);
+        return ResponseEntity.ok()
+                .header("Content-Disposition", "inline; filename=fatura_" + id + ".pdf")
+                .header("Content-Type", "application/pdf")
+                .body(data);
     }
+
+    @GetMapping("/{id}/export/excel")
+    public ResponseEntity<byte[]> exportInvoiceExcel(@PathVariable Long id) {
+        byte[] data = invoiceReportService.exportInvoiceToExcel(id);
+        return ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename=fatura_" + id + ".xlsx")
+                .header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                .body(data);
+    }
+
+    @GetMapping("/{id}/preview")
+    public ResponseEntity<byte[]> previewInvoice(@PathVariable Long id) {
+        byte[] data = invoiceReportService.exportInvoiceToPdf(id);
+        return ResponseEntity.ok()
+                .header("Content-Disposition", "inline; filename=preview_fatura_" + id + ".pdf")
+                .header("Content-Type", "application/pdf")
+                .body(data);
+    }
+
+
 }

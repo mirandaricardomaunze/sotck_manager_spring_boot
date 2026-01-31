@@ -7,7 +7,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-
 @RestController
 @RequestMapping("/warehouses")
 public class WarehouseController {
@@ -18,53 +17,83 @@ public class WarehouseController {
         this.warehouseService = warehouseService;
     }
 
-    // ===== CREATE =====
+    // ================= CREATE =================
     @PostMapping
-    public ResponseEntity<WarehouseResponseDTO> createWarehouse(@RequestBody WarehouseRequestDTO requestDTO) {
-        WarehouseResponseDTO created = warehouseService.createWarehouse(requestDTO);
-        return ResponseEntity.ok(created);
+    public ResponseEntity<WarehouseResponseDTO> createWarehouse(
+            @RequestBody WarehouseRequestDTO requestDTO) {
+
+        return ResponseEntity.ok(
+                warehouseService.createWarehouse(requestDTO)
+        );
     }
 
-    // ===== READ ALL =====
-    @GetMapping
-    public ResponseEntity<List<WarehouseResponseDTO>> getAllWarehouses() {
-        List<WarehouseResponseDTO> warehouses = warehouseService.getAllWarehouses();
-        return ResponseEntity.ok(warehouses);
+    // ================= READ =================
+
+    /** 🔥 USAR NO COMBOBOX */
+    @GetMapping("/company/{companyId}/active")
+    public ResponseEntity<List<WarehouseResponseDTO>> getActiveWarehousesByCompany(
+            @PathVariable Long companyId) {
+
+        return ResponseEntity.ok(
+                warehouseService.getActiveWarehousesByCompany(companyId)
+        );
     }
 
+    /** TODOS os armazéns da empresa */
     @GetMapping("/company/{companyId}")
-    public ResponseEntity<List<WarehouseResponseDTO>> getWarehousesByCompany(@PathVariable Long companyId) {
-        List<WarehouseResponseDTO> warehouses = warehouseService.getWarehousesByCompany(companyId);
-        return ResponseEntity.ok(warehouses);
+    public ResponseEntity<List<WarehouseResponseDTO>> getAllWarehousesByCompany(
+            @PathVariable Long companyId) {
+
+        return ResponseEntity.ok(
+                warehouseService.getAllWarehousesByCompany(companyId)
+        );
     }
 
-    // ===== READ BY ID =====
+    /** Armazém principal */
+    @GetMapping("/company/{companyId}/principal")
+    public ResponseEntity<WarehouseResponseDTO> getPrincipalWarehouseByCompany(
+            @PathVariable Long companyId) {
+
+        return ResponseEntity.ok(
+                warehouseService.getPrincipalWarehouseByCompany(companyId)
+        );
+    }
+
+    /** Por ID */
     @GetMapping("/{id}")
-    public ResponseEntity<WarehouseResponseDTO> getWarehouseById(@PathVariable Long id) {
-        WarehouseResponseDTO warehouse = warehouseService.getWarehouseById(id);
-        return ResponseEntity.ok(warehouse);
+    public ResponseEntity<WarehouseResponseDTO> getWarehouseById(
+            @PathVariable Long id) {
+
+        return ResponseEntity.ok(
+                warehouseService.getWarehouseById(id)
+        );
     }
 
-    // ===== UPDATE =====
+    // ================= UPDATE =================
     @PutMapping("/{id}")
     public ResponseEntity<WarehouseResponseDTO> updateWarehouse(
             @PathVariable Long id,
             @RequestBody WarehouseRequestDTO requestDTO) {
-        WarehouseResponseDTO updated = warehouseService.updateWarehouse(id, requestDTO);
-        return ResponseEntity.ok(updated);
+
+        return ResponseEntity.ok(
+                warehouseService.updateWarehouse(id, requestDTO)
+        );
     }
 
-    // ===== DELETE =====
+    // ================= DELETE =================
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteWarehouse(@PathVariable Long id) {
         warehouseService.deleteWarehouse(id);
         return ResponseEntity.noContent().build();
     }
 
-    // ===== SET PRINCIPAL =====
+    // ================= PRINCIPAL =================
     @PostMapping("/{id}/set-principal")
-    public ResponseEntity<WarehouseResponseDTO> setPrincipal(@PathVariable Long id) {
-        WarehouseResponseDTO updated = warehouseService.setPrincipalWarehouse(id);
-        return ResponseEntity.ok(updated);
+    public ResponseEntity<WarehouseResponseDTO> setPrincipalWarehouse(
+            @PathVariable Long id) {
+
+        return ResponseEntity.ok(
+                warehouseService.setPrincipalWarehouse(id)
+        );
     }
 }
